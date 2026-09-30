@@ -104,6 +104,10 @@ namespace Bag
                     if (attributes.Length > 0)
                     {
                         var attribute = (MaterialPropertyAttribute)attributes[0];
+                        if (attribute.Name.IndexOf("unity_") != -1)
+                        {
+                            continue;
+                        }
                         // MaterialProperty.TypeIndex packs the slot index into the per-world handle array, so the slot and s_PropertyTypes order must stay in lockstep
                         var property = new MaterialProperty(Shader.PropertyToID(attribute.Name), s_PropertyTypes.Count, UnsafeUtility.SizeOf(type), typeInfo.TypeIndex.IsBuffer);
                         s_PropertyTypes.Add(typeInfo.TypeIndex);

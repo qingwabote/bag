@@ -10,10 +10,27 @@ namespace Bag
 {
     public readonly struct MaterialProperty
     {
+        public struct Set
+        {
+            public struct ReadOnly
+            {
+                public NativeArray<MaterialProperty>.ReadOnly Data;
+                public int Hash;
+            }
+
+            public NativeArray<MaterialProperty> Data;
+            public int Hash;
+
+            public ReadOnly AsReadOnly()
+            {
+                return new ReadOnly { Data = Data.AsReadOnly(), Hash = Hash };
+            }
+        }
+
         public struct Cache
         {
             public NativeArray<DynamicComponentTypeHandle> Handles;
-            private Bastard.UnsafeHashMap<EntityArchetype, UnsafeList<MaterialProperty>> m_Properties;
+            private UnsafeHashMap<EntityArchetype, Set> m_Properties;
 
             public Cache(EntityManager entityManager)
             {
@@ -37,18 +54,26 @@ namespace Bag
                 {
                     foreach (var kv in m_Properties)
                     {
-                        kv.Value.Dispose();
+                        kv.Value.Data.Dispose();
                     }
 
                     m_Properties.Dispose();
                 }
             }
 
-            public UnsafeList<MaterialProperty>.ReadOnly GetProperty(EntityArchetype archetype)
+            struct PropertyComparer : IComparer<MaterialProperty>
             {
-                if (m_Properties.TryGetValue(archetype, out var list))
+                public int Compare(MaterialProperty x, MaterialProperty y)
                 {
-                    return list.AsReadOnly();
+                    return x.Name.CompareTo(y.Name);
+                }
+            }
+
+            public Set.ReadOnly GetProperty(EntityArchetype archetype)
+            {
+                if (m_Properties.TryGetValue(archetype, out var result))
+                {
+                    return result.AsReadOnly();
                 }
 
                 var types = archetype.GetComponentTypes(Allocator.Temp);
@@ -61,25 +86,25 @@ namespace Bag
                 }
                 Debug.Assert(count <= Capacity);
 
-                UnsafeList<MaterialProperty> properties = new(count, Allocator.Persistent);
+                var properties = new NativeArray<MaterialProperty>(count, Allocator.Persistent);
+                var index = 0;
                 foreach (var type in types)
                 {
                     if (s_TypeToProperty.Data.TryGetValue(type.TypeIndex, out MaterialProperty property))
-                        properties.Add(property);
+                        properties[index++] = property;
                 }
                 NativeSortExtension.Sort(properties, new PropertyComparer());
 
-                m_Properties.Add(archetype, properties);
+                int hash = 17;
+                for (int i = 0; i < properties.Length; i++)
+                {
+                    hash = hash * 31 + properties[i].Name;
+                }
 
-                return properties.AsReadOnly();
-            }
-        }
+                result = new Set { Data = properties, Hash = hash };
+                m_Properties.Add(archetype, result);
 
-        struct PropertyComparer : IComparer<MaterialProperty>
-        {
-            public int Compare(MaterialProperty x, MaterialProperty y)
-            {
-                return x.Name.CompareTo(y.Name);
+                return result.AsReadOnly();
             }
         }
 
@@ -87,7 +112,7 @@ namespace Bag
 
         private struct TypeToPropertyTag { }
         // use TypeIndex of ComponentType as key, ignore AccessModeType
-        static private readonly SharedStatic<Bastard.UnsafeHashMap<int, MaterialProperty>> s_TypeToProperty = SharedStatic<Bastard.UnsafeHashMap<int, MaterialProperty>>.GetOrCreate<TypeToPropertyTag>();
+        static private readonly SharedStatic<UnsafeHashMap<int, MaterialProperty>> s_TypeToProperty = SharedStatic<UnsafeHashMap<int, MaterialProperty>>.GetOrCreate<TypeToPropertyTag>();
 
         static private List<TypeIndex> s_PropertyTypes = new List<TypeIndex>(8);
 

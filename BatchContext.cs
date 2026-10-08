@@ -35,12 +35,15 @@ namespace Bag
 
             internal readonly UnityObjectRef<Mesh> Mesh;
 
+            internal readonly int Property;
+
             internal readonly int Key;
 
-            internal BatchKey(UnityObjectRef<Material> material, UnityObjectRef<Mesh> mesh, int key)
+            internal BatchKey(UnityObjectRef<Material> material, UnityObjectRef<Mesh> mesh, int property, int key)
             {
                 Material = material;
                 Mesh = mesh;
+                Property = property;
                 Key = key;
             }
 
@@ -49,13 +52,14 @@ namespace Bag
                 int hash = 17;
                 hash = hash * 31 + Material.GetHashCode();
                 hash = hash * 31 + Mesh.GetHashCode();
+                hash = hash * 31 + Property;
                 hash = hash * 31 + Key;
                 return hash;
             }
 
             public bool Equals(BatchKey other)
             {
-                return Material == other.Material && Mesh == other.Mesh && Key == other.Key;
+                return Material == other.Material && Mesh == other.Mesh && Property == other.Property && Key == other.Key;
             }
         }
 
@@ -63,7 +67,9 @@ namespace Bag
         {
             private readonly BatchQueue m_Queue;
 
-            private ArchetypeChunk m_Chunk;
+            private readonly ArchetypeChunk m_Chunk;
+
+            private readonly MaterialProperty.Set.ReadOnly m_PropertySet;
 
             private const int ChunkBatchCapacity = 32;
             private const int ChunkElementCapacity = 128;
@@ -76,17 +82,18 @@ namespace Bag
             private unsafe fixed int m_ElementToEntity[ChunkElementCapacity];
             private int m_ElementCount;
 
-            internal Batcher(in BatchQueue queue, in ArchetypeChunk chunk)
+            internal unsafe Batcher(in BatchQueue queue, in ArchetypeChunk chunk)
             {
                 m_Queue = queue;
                 m_Chunk = chunk;
+                m_PropertySet = queue.m_Context->MaterialPropertyCache.GetProperty(chunk.Archetype);
                 m_ElementCount = 0;
                 m_BatchCount = 0;
             }
 
             public unsafe ref Batch Add(UnityObjectRef<Material> material, UnityObjectRef<Mesh> mesh, int entity, int element = 0, int hashCode = 0)
             {
-                var key = new BatchKey(material, mesh, hashCode);
+                var key = new BatchKey(material, mesh, m_PropertySet.Hash, hashCode);
                 ref var state = ref m_Queue.m_States->EnsureValueRef(key, out var uninitialized);
                 if (uninitialized)
                 {
@@ -139,10 +146,9 @@ namespace Bag
 
             public unsafe void Dispose()
             {
-                var properties = m_Queue.m_Context->MaterialPropertyCache.GetProperty(m_Chunk.Archetype);
-                for (int i = 0; i < properties.Length; i++)
+                for (int i = 0; i < m_PropertySet.Data.Length; i++)
                 {
-                    var property = properties.Ptr[i];
+                    var property = m_PropertySet.Data[i];
                     for (int j = 0; j < m_BatchCount; j++)
                     {
                         var batchIndex = m_BatchSet[j];

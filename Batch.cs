@@ -31,7 +31,7 @@ namespace Bag
                 get => m_Count;
             }
 
-            public int Ensure(int name, int size, int instanceCount, int instanceCapacity)
+            public int Ensure(int name, int size, int capacity)
             {
                 var index = -1;
                 for (int i = 0; i < m_Count; i++)
@@ -59,13 +59,7 @@ namespace Bag
                     m_Sizes[index] = 0;
                     m_Ptrs[index] = 0;
 
-                    Resize(index, instanceCapacity * size);
-                }
-
-                var padding = instanceCount * size - GetSize(index);
-                if (padding > 0)
-                {
-                    AddBytes(index, null, padding);
+                    Resize(index, capacity * size);
                 }
 
                 return index;
@@ -109,15 +103,7 @@ namespace Bag
                     Resize(index, size + count);
                 }
 
-                var ptr = GetPtr(index) + size;
-                if (src == null)
-                {
-                    UnsafeUtility.MemSet(ptr, 0, count);
-                }
-                else
-                {
-                    UnsafeUtility.MemCpy(ptr, src, count);
-                }
+                UnsafeUtility.MemCpy(GetPtr(index) + size, src, count);
 
                 m_Sizes[index] = (ushort)(size + count);
             }
@@ -182,7 +168,7 @@ namespace Bag
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public int PropertyDataEnsure(int name, int size, int capacity)
         {
-            return m_PropertyData.Ensure(name, size, Count, capacity);
+            return m_PropertyData.Ensure(name, size, capacity);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

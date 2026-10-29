@@ -113,12 +113,7 @@ namespace Bag
                 var arrayType = GetArrayType(index);
                 var size = arrayType == ArrayType.Float ? sizeof(float) : UnsafeUtility.SizeOf<Vector4>();
                 var arrayLength = (ushort)math.ceil(capacity / (float)size);
-                void*
-#if UNITY_WEBGL && !UNITY_EDITOR
-                ptr = ArrayAllocatorManaged.Alloc(arrayType, ref arrayLength, out short location);
-#else
-                ptr = ArrayAllocator.Alloc.Data.Invoke(arrayType, ref arrayLength, out short location);
-#endif
+                void* ptr = ArrayAllocator.Alloc(arrayType, ref arrayLength, out short location);
                 var oldSize = GetSize(index);
                 if (oldSize > 0)
                 {
@@ -191,12 +186,12 @@ namespace Bag
             {
                 if (m_PropertyData.GetArrayType(i) == ArrayType.Float)
                 {
-                    NoAllocHelpers.ResetListContents(s_FloatList, (float[])ArrayAllocatorManaged.Get(m_PropertyData.GetLocation(i)), m_PropertyData.GetSize(i) / sizeof(float));
+                    NoAllocHelpers.ResetListContents(s_FloatList, (float[])ArrayAllocator.Get(m_PropertyData.GetLocation(i)), m_PropertyData.GetSize(i) / sizeof(float));
                     output.SetFloatArray(m_PropertyData.GetName(i), s_FloatList);
                 }
                 else
                 {
-                    NoAllocHelpers.ResetListContents(s_VectorList, (Vector4[])ArrayAllocatorManaged.Get(m_PropertyData.GetLocation(i)), m_PropertyData.GetSize(i) / UnsafeUtility.SizeOf<Vector4>());
+                    NoAllocHelpers.ResetListContents(s_VectorList, (Vector4[])ArrayAllocator.Get(m_PropertyData.GetLocation(i)), m_PropertyData.GetSize(i) / UnsafeUtility.SizeOf<Vector4>());
                     output.SetVectorArray(m_PropertyData.GetName(i), s_VectorList);
                 }
             }
